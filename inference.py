@@ -7,24 +7,16 @@ from environment import SurakshaAIEnv, Action
 # -----------------------------
 # ENV VARIABLES (MANDATORY)
 # -----------------------------
-API_BASE_URL = os.getenv(
-    "API_BASE_URL",
-    "https://shivam2309-suraksha-ai.hf.space"
-)
-
-MODEL_NAME = os.getenv(
-    "MODEL_NAME",
-    "suraksha-ai-agent"
-)
-
-HF_TOKEN = os.getenv("HF_TOKEN")
+API_BASE_URL = os.environ["API_BASE_URL"]
+MODEL_NAME = os.environ["MODEL_NAME"]
+API_KEY = os.environ["API_KEY"]
 
 # -----------------------------
 # OPENAI CLIENT (REQUIRED)
 # -----------------------------
 client = OpenAI(
     base_url=API_BASE_URL,
-    api_key=HF_TOKEN
+    api_key=API_KEY
 )
 
 # -----------------------------
@@ -35,15 +27,37 @@ MAX_STEPS = 5
 
 
 # -----------------------------
-# SIMPLE DECISION LOGIC (AGENT)
+# LLM DECISION LOGIC (IMPORTANT)
 # -----------------------------
 def decide_action(observation):
-    if observation.sound == "scream":
-        return "call_police"
-    elif observation.movement == "suspicious":
-        return "send_alert"
-    else:
-        return "ignore"
+    prompt = f"""
+    You are a safety AI agent.
+
+    Situation:
+    Time: {observation.time}
+    Location: {observation.location}
+    Sound: {observation.sound}
+    Movement: {observation.movement}
+
+    Choose ONE action strictly from:
+    call_police / send_alert / ignore
+
+    Only return the action.
+    """
+
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    action = response.choices[0].message.content.strip().lower()
+
+    if action not in ["call_police", "send_alert", "ignore"]:
+        action = "ignore"
+
+    return action
 
 
 # -----------------------------
@@ -104,7 +118,6 @@ def run_task(task_name):
             if done:
                 break
 
-        # Success criteria
         avg_reward = sum(rewards) / len(rewards)
         success = avg_reward > 0
 
