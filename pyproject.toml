@@ -1,0 +1,19 @@
+[project]
+name = "suraksha-ai"
+version = "0.1.0"
+description = "Women Safety AI Environment using OpenEnv"
+authors = [{ name = "Your Name" }]
+dependencies = [
+    "pydantic",
+    "openai",
+    "openenv-core",
+    "fastapi",
+    "uvicorn"
+]
+
+[project.scripts]
+server = "server.app:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

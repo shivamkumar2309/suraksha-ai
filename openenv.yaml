@@ -1,0 +1,24 @@
+name: suraksha_ai
+version: 1.0.0
+description: AI-powered women safety decision-making environment
+
+entry_point: environment:SurakshaAIEnv
+
+tasks:
+  - name: easy
+    description: Clear danger situation (scream + unsafe)
+  - name: medium
+    description: Suspicious movement, no clear scream
+  - name: hard
+    description: Mixed signals, uncertain situation
+
+observation_space:
+  time: ["day", "night"]
+  location: ["safe", "unsafe"]
+  sound: ["normal", "scream"]
+  movement: ["normal", "suspicious"]
+
+action_space:
+  action: ["send_alert", "ignore", "call_police", "trigger_alarm"]
+
+reward_range: [-1, 1]
