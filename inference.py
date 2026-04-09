@@ -7,17 +7,18 @@ from environment import SurakshaAIEnv, Action
 # -----------------------------
 # ENV VARIABLES (MANDATORY)
 # -----------------------------
-API_BASE_URL = os.environ["API_BASE_URL"]
-MODEL_NAME = os.environ["MODEL_NAME"]
-API_KEY = os.environ["API_KEY"]
+API_BASE_URL = os.environ["API_BASE_URL"] 
+API_KEY = os.environ["API_KEY"]            
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4")
 
 # -----------------------------
-# OPENAI CLIENT (REQUIRED)
+# OPENAI CLIENT
 # -----------------------------
 client = OpenAI(
     base_url=API_BASE_URL,
     api_key=API_KEY
 )
+
 
 # -----------------------------
 # SETTINGS
@@ -30,38 +31,40 @@ MAX_STEPS = 5
 # LLM DECISION LOGIC (IMPORTANT)
 # -----------------------------
 def decide_action(observation):
-    prompt = f"""
-    You are a safety AI agent.
+    try:
+        prompt = f"""
+        You are a safety AI agent.
 
-    Situation:
-    Time: {observation.time}
-    Location: {observation.location}
-    Sound: {observation.sound}
-    Movement: {observation.movement}
+        Situation:
+        Time: {observation.time}
+        Location: {observation.location}
+        Sound: {observation.sound}
+        Movement: {observation.movement}
 
-    Choose ONE action strictly from:
-    call_police / send_alert / ignore
+        Choose one action strictly from:
+        call_police / send_alert / ignore
 
-    Only return the action.
-    """
+        Only return the action.
+        """
 
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}]
+        )
 
-    action = response.choices[0].message.content.strip().lower()
+        action = response.choices[0].message.content.strip().lower()
 
-    if action not in ["call_police", "send_alert", "ignore"]:
-        action = "ignore"
+        if action not in ["call_police", "send_alert", "ignore"]:
+            return "ignore"
 
-    return action
+        return action
+
+    except Exception:
+        return "ignore"   # FAIL-SAFE (VERY IMPORTANT)
 
 
 # -----------------------------
-# LOG FUNCTIONS (STRICT FORMAT)
+# LOG FUNCTIONS
 # -----------------------------
 def log_start(task, env, model):
     print(f"[START] task={task} env={env} model={model}", flush=True)
