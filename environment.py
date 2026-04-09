@@ -33,15 +33,14 @@ class StepResult(BaseModel):
 
 
 # -----------------------------
-# Clamp function (STRICT FIX)
+# Clamp function (STRICT SAFE)
 # -----------------------------
-def clamp_score(score: float) -> float:
-    # strict (0,1) guarantee
-    if score <= 0:
+def clamp_score(x: float) -> float:
+    if x <= 0:
         return 0.01
-    if score >= 1:
+    if x >= 1:
         return 0.99
-    return score
+    return x
 
 
 # -----------------------------
@@ -51,11 +50,8 @@ def send_email_alert(receiver_email):
     sender_email = os.getenv("EMAIL_USER")
     app_password = os.getenv("EMAIL_PASS")
 
-    subject = "Emergency Alert!"
-    body = "User might be in danger. Immediate attention required!"
-
-    msg = MIMEText(body)
-    msg["Subject"] = subject
+    msg = MIMEText("User might be in danger. Immediate attention required!")
+    msg["Subject"] = "Emergency Alert!"
     msg["From"] = sender_email
     msg["To"] = receiver_email
 
@@ -128,24 +124,24 @@ class SurakshaAIEnv:
         self.step_count += 1
         obs = self.state
 
-        # Danger score
+        # Raw danger score
         danger_score = 0.0
         if obs.sound == "scream":
             danger_score += 0.7
         if obs.movement == "suspicious":
             danger_score += 0.3
 
-        # clamp danger score
-        danger_score = clamp_score(danger_score)
-
-        # grade
         grade = self.grade_action(obs, action.action)
 
-        # reward (NO rounding bug)
-        reward = (danger_score * 0.5) + (grade * 0.5)
+        # SAFE VALUES (IMPORTANT)
+        safe_danger = clamp_score(danger_score)
+        safe_grade = clamp_score(grade)
+
+        # Reward calculation
+        reward = (safe_danger * 0.5) + (safe_grade * 0.5)
         reward = clamp_score(reward)
 
-        # safe formatting (no 1.0 conversion)
+        # prevent rounding → 1.0
         reward = float(f"{reward:.3f}")
 
         # Email trigger
@@ -164,8 +160,8 @@ class SurakshaAIEnv:
             done=done,
             info={
                 "task": self.task,
-                "danger_score": float(f"{danger_score:.3f}"),
-                "grade": grade,
+                "danger_score": float(f"{safe_danger:.3f}"),
+                "grade": float(f"{safe_grade:.3f}"),
                 "alert_sent": alert_status,
                 "alert_message": "Alert triggered"
             }
