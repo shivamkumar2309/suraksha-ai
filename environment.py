@@ -5,15 +5,26 @@ import smtplib
 from email.mime.text import MIMEText
 import os
 
+# -----------------------------
+# Observation Model
+# -----------------------------
 class Observation(BaseModel):
     time: str
     location: str
     sound: str
     movement: str
 
+
+# -----------------------------
+# Action Model
+# -----------------------------
 class Action(BaseModel):
     action: str
 
+
+# -----------------------------
+# Step Result Model
+# -----------------------------
 class StepResult(BaseModel):
     observation: Observation
     reward: float
@@ -21,11 +32,16 @@ class StepResult(BaseModel):
     info: Optional[dict] = None
 
 
-# STRICT clamp
+# -----------------------------
+# Clamp (STRICT SAFE)
+# -----------------------------
 def clamp(x: float) -> float:
     return max(0.01, min(0.99, x))
 
 
+# -----------------------------
+# Email Alert
+# -----------------------------
 def send_email_alert(receiver_email):
     try:
         sender_email = os.getenv("EMAIL_USER")
@@ -46,6 +62,9 @@ def send_email_alert(receiver_email):
         return False
 
 
+# -----------------------------
+# Environment
+# -----------------------------
 class SurakshaAIEnv:
 
     def __init__(self, task="easy"):
@@ -54,49 +73,69 @@ class SurakshaAIEnv:
         self.step_count = 0
         self.max_steps = 5
 
-    def reset(self):
+    def reset(self) -> Observation:
         self.step_count = 0
 
         if self.task == "easy":
-            self.state = Observation("night", "unsafe", "scream", "suspicious")
+            self.state = Observation(
+                time="night",
+                location="unsafe",
+                sound="scream",
+                movement="suspicious"
+            )
         elif self.task == "medium":
-            self.state = Observation("night", "unsafe", "normal", "suspicious")
+            self.state = Observation(
+                time="night",
+                location="unsafe",
+                sound="normal",
+                movement="suspicious"
+            )
         else:
             self.state = Observation(
-                random.choice(["day", "night"]),
-                random.choice(["safe", "unsafe"]),
-                random.choice(["normal", "scream"]),
-                random.choice(["normal", "suspicious"]),
+                time=random.choice(["day", "night"]),
+                location=random.choice(["safe", "unsafe"]),
+                sound=random.choice(["normal", "scream"]),
+                movement=random.choice(["normal", "suspicious"])
             )
 
         return self.state
 
+    # -----------------------------
+    # Grader (STRICT SAFE)
+    # -----------------------------
     def grade_action(self, obs, action):
         if obs.sound == "scream":
-            return 0.99 if action in ["call_police", "send_alert"] else 0.01
+            score = 0.99 if action in ["call_police", "send_alert"] else 0.01
         elif obs.movement == "suspicious":
-            return 0.99 if action == "send_alert" else 0.01
-        return 0.99 if action == "ignore" else 0.01
+            score = 0.99 if action == "send_alert" else 0.01
+        else:
+            score = 0.99 if action == "ignore" else 0.01
 
-    def step(self, action: Action):
+        return clamp(score)
+
+    # -----------------------------
+    # Step (FINAL SAFE)
+    # -----------------------------
+    def step(self, action: Action) -> StepResult:
         self.step_count += 1
         obs = self.state
 
+        # Raw danger score
         danger = 0.0
         if obs.sound == "scream":
             danger += 0.7
         if obs.movement == "suspicious":
             danger += 0.3
 
-        grade = self.grade_action(obs, action.action)
+        # Safe values
+        safe_danger = clamp(danger)
+        safe_grade = self.grade_action(obs, action.action)
 
-        # STRICT SAFE VALUES
-        danger = clamp(danger)
-        grade = clamp(grade)
-
-        reward = (danger + grade) / 2
+        # Reward
+        reward = (safe_danger + safe_grade) / 2
         reward = clamp(reward)
 
+        # Email trigger
         alert = False
         if action.action == "send_alert":
             alert = send_email_alert("shivam738804@gmail.com")
@@ -109,8 +148,11 @@ class SurakshaAIEnv:
             done=done,
             info={
                 "task": self.task,
-                "danger_score": danger,
-                "grade": grade,
+                "danger_score": safe_danger,
+                "grade": safe_grade,
                 "alert_sent": alert
             }
         )
+
+    def get_state(self) -> Observation:
+        return self.state
