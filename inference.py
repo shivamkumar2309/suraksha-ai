@@ -14,6 +14,10 @@ TASKS = ["easy", "medium", "hard"]
 MAX_STEPS = 5
 
 
+def clamp(x):
+    return max(0.01, min(0.99, x))
+
+
 def decide_action(obs):
     try:
         prompt = f"""
@@ -33,6 +37,7 @@ def decide_action(obs):
 
         if action not in ["call_police", "send_alert", "ignore"]:
             return "ignore"
+
         return action
 
     except Exception:
@@ -44,11 +49,12 @@ def log_start(task, env, model):
 
 
 def log_step(step, action, reward, done):
+    reward = clamp(reward)
     print(f"[STEP] step={step} action={action} reward={reward:.3f} done={str(done).lower()} error=null", flush=True)
 
 
 def log_end(success, steps, rewards: List[float]):
-    safe_rewards = [max(0.01, min(0.99, r)) for r in rewards]
+    safe_rewards = [clamp(r) for r in rewards]
     rewards_str = ",".join(f"{r:.3f}" for r in safe_rewards)
     print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
 
@@ -65,16 +71,16 @@ def run_task(task):
         action = decide_action(obs)
         result = env.step(Action(action=action))
 
-        rewards.append(result.reward)
-        log_step(i, action, result.reward, result.done)
+        safe_reward = clamp(result.reward)
+        rewards.append(safe_reward)
+
+        log_step(i, action, safe_reward, result.done)
 
         if result.done:
             break
 
     avg = sum(rewards) / len(rewards)
-
-    # STRICT SAFE FINAL SCORE
-    avg = max(0.01, min(0.99, avg))
+    avg = clamp(avg)   
 
     success = avg > 0.5
 
