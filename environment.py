@@ -33,14 +33,19 @@ class StepResult(BaseModel):
 
 
 # -----------------------------
-# Clamp function (IMPORTANT FIX)
+# Clamp function (STRICT FIX)
 # -----------------------------
-def clamp_score(score):
-    return max(0.01, min(score, 0.99))
+def clamp_score(score: float) -> float:
+    # strict (0,1) guarantee
+    if score <= 0:
+        return 0.01
+    if score >= 1:
+        return 0.99
+    return score
 
 
 # -----------------------------
-# Email Alert Function 
+# Email Alert Function
 # -----------------------------
 def send_email_alert(receiver_email):
     sender_email = os.getenv("EMAIL_USER")
@@ -60,10 +65,8 @@ def send_email_alert(receiver_email):
         server.login(sender_email, app_password)
         server.send_message(msg)
         server.quit()
-        print("Email Sent Successfully!")
         return True
-    except Exception as e:
-        print("Email Failed:", e)
+    except Exception:
         return False
 
 
@@ -106,7 +109,7 @@ class SurakshaAIEnv:
         return self.state
 
     # -----------------------------
-    # Grader (FIXED)
+    # Grader (STRICT SAFE)
     # -----------------------------
     def grade_action(self, observation, action):
         if observation.sound == "scream":
@@ -119,7 +122,7 @@ class SurakshaAIEnv:
         return clamp_score(score)
 
     # -----------------------------
-    # Step
+    # Step (FINAL FIXED)
     # -----------------------------
     def step(self, action: Action) -> StepResult:
         self.step_count += 1
@@ -132,21 +135,26 @@ class SurakshaAIEnv:
         if obs.movement == "suspicious":
             danger_score += 0.3
 
-        grade = self.grade_action(obs, action.action)
-        reward = (danger_score * 0.5) + (grade * 0.5)
+        # clamp danger score
+        danger_score = clamp_score(danger_score)
 
-        # FINAL CLAMP (IMPORTANT)
-        reward = clamp_score(round(reward, 2))
+        # grade
+        grade = self.grade_action(obs, action.action)
+
+        # reward (NO rounding bug)
+        reward = (danger_score * 0.5) + (grade * 0.5)
+        reward = clamp_score(reward)
+
+        # safe formatting (no 1.0 conversion)
+        reward = float(f"{reward:.3f}")
 
         # Email trigger
         alert_status = False
-
         if action.action == "send_alert":
             try:
                 alert_status = send_email_alert("shivam738804@gmail.com")
-            except Exception as e:
-                print("Email error:", e)
-                alert_status = False  
+            except Exception:
+                alert_status = False
 
         done = self.step_count >= self.max_steps
 
@@ -156,7 +164,7 @@ class SurakshaAIEnv:
             done=done,
             info={
                 "task": self.task,
-                "danger_score": clamp_score(danger_score),
+                "danger_score": float(f"{danger_score:.3f}"),
                 "grade": grade,
                 "alert_sent": alert_status,
                 "alert_message": "Alert triggered"
