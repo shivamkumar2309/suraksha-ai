@@ -33,6 +33,13 @@ class StepResult(BaseModel):
 
 
 # -----------------------------
+# Clamp function (IMPORTANT FIX)
+# -----------------------------
+def clamp_score(score):
+    return max(0.01, min(score, 0.99))
+
+
+# -----------------------------
 # Email Alert Function 
 # -----------------------------
 def send_email_alert(receiver_email):
@@ -99,15 +106,17 @@ class SurakshaAIEnv:
         return self.state
 
     # -----------------------------
-    # Grader
+    # Grader (FIXED)
     # -----------------------------
     def grade_action(self, observation, action):
         if observation.sound == "scream":
-            return 1.0 if action in ["call_police", "send_alert"] else 0.0
+            score = 0.99 if action in ["call_police", "send_alert"] else 0.01
         elif observation.movement == "suspicious":
-            return 1.0 if action == "send_alert" else 0.0
+            score = 0.99 if action == "send_alert" else 0.01
         else:
-            return 1.0 if action == "ignore" else 0.0
+            score = 0.99 if action == "ignore" else 0.01
+
+        return clamp_score(score)
 
     # -----------------------------
     # Step
@@ -116,7 +125,7 @@ class SurakshaAIEnv:
         self.step_count += 1
         obs = self.state
 
-        #  Danger score
+        # Danger score
         danger_score = 0.0
         if obs.sound == "scream":
             danger_score += 0.7
@@ -126,7 +135,10 @@ class SurakshaAIEnv:
         grade = self.grade_action(obs, action.action)
         reward = (danger_score * 0.5) + (grade * 0.5)
 
-        #  Email trigger
+        # FINAL CLAMP (IMPORTANT)
+        reward = clamp_score(round(reward, 2))
+
+        # Email trigger
         alert_status = False
 
         if action.action == "send_alert":
@@ -140,14 +152,14 @@ class SurakshaAIEnv:
 
         return StepResult(
             observation=obs,
-            reward=round(reward, 2),
+            reward=reward,
             done=done,
             info={
                 "task": self.task,
-                "danger_score": danger_score,
+                "danger_score": clamp_score(danger_score),
                 "grade": grade,
                 "alert_sent": alert_status,
-                "alert_message": " Alert triggered"
+                "alert_message": "Alert triggered"
             }
         )
 
