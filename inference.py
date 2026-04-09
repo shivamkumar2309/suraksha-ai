@@ -4,20 +4,32 @@ from openai import OpenAI
 
 from environment import SurakshaAIEnv, Action
 
+# -----------------------------
+# ENV VARIABLES (MANDATORY)
+# -----------------------------
 API_BASE_URL = os.environ["API_BASE_URL"]
 API_KEY = os.environ["API_KEY"]
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4")
 
 client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
+# -----------------------------
+# SETTINGS
+# -----------------------------
 TASKS = ["easy", "medium", "hard"]
 MAX_STEPS = 5
 
 
-def clamp(x):
+# -----------------------------
+# SAFE CLAMP
+# -----------------------------
+def clamp(x: float) -> float:
     return max(0.01, min(0.99, x))
 
 
+# -----------------------------
+# LLM DECISION
+# -----------------------------
 def decide_action(obs):
     try:
         prompt = f"""
@@ -44,21 +56,33 @@ def decide_action(obs):
         return "ignore"
 
 
+# -----------------------------
+# LOG FUNCTIONS
+# -----------------------------
 def log_start(task, env, model):
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
 
 def log_step(step, action, reward, done):
     reward = clamp(reward)
-    print(f"[STEP] step={step} action={action} reward={reward:.3f} done={str(done).lower()} error=null", flush=True)
+    print(
+        f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error=null",
+        flush=True
+    )
 
 
-def log_end(success, steps, rewards: List[float]):
-    safe_rewards = [clamp(r) for r in rewards]
-    rewards_str = ",".join(f"{r:.3f}" for r in safe_rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
+def log_end(success, steps, score, rewards: List[float]):
+    rewards = [clamp(r) for r in rewards]
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}",
+        flush=True
+    )
 
 
+# -----------------------------
+# MAIN
+# -----------------------------
 def run_task(task):
     env = SurakshaAIEnv(task=task)
 
@@ -71,20 +95,29 @@ def run_task(task):
         action = decide_action(obs)
         result = env.step(Action(action=action))
 
-        safe_reward = clamp(result.reward)
-        rewards.append(safe_reward)
+        r = clamp(result.reward)
+        rewards.append(r)
 
-        log_step(i, action, safe_reward, result.done)
+        log_step(i, action, r, result.done)
 
         if result.done:
             break
 
+    # -----------------------------
+    # FINAL SCORE FIX (IMPORTANT)
+    # -----------------------------
     avg = sum(rewards) / len(rewards)
-    avg = clamp(avg)   
+    score = clamp(avg)
 
-    success = avg > 0.5
+    # extra safety (no 0 / 1 ever)
+    if score >= 0.99:
+        score = 0.989
+    if score <= 0.01:
+        score = 0.011
 
-    log_end(success, len(rewards), rewards)
+    success = score > 0.5
+
+    log_end(success, len(rewards), score, rewards)
 
 
 if __name__ == "__main__":
