@@ -19,6 +19,6 @@ observation_space:
   movement: ["normal", "suspicious"]
 
 action_space:
-  action: ["send_alert", "ignore", "call_police", "trigger_alarm"]
+  action: ["send_alert", "ignore", "call_police"]
 
-reward_range: [-1, 1]
+reward_range: [0.01, 0.99]
